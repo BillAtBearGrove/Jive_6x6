@@ -9,12 +9,12 @@
   #include "src/Debounce.h"
   #include "src/Filter.h"
   #include "PID.h"
-  #include "src/DualVNH5019MotorShield.h";
+  #include "DualG2HighPowerMotorShield.h"
   #include "pinouts.h"; // Use for VNH5019 MotorShield
   #include "Config.h";
   #include "Init.h";
   #include "joyProcessing.h";
-  DualVNH5019MotorShield md; //setup vnh5019 method
+  DualG2HighPowerMotorShield24v18 md; //setup G2 method
 
   unsigned long lastDebugTime = millis(); // only send serialmonitor debug() every debugPeriod ms
   struct joyInput joyInputs_;
@@ -94,7 +94,7 @@ void loop() {
     rateLimitMotors(); // returns motorReqVel_filt_L and motorReqVel_filt_R based on inputs motorReqVel_L and motorReqVel_R | function rate limits and debounces each input
     
   // OUTPUT MOTOR SIGNALS
-    setMotorOutputs_VNH5019(motorReqVel_filt_L, motorReqVel_filt_R);
+    setMotorOutputs_G2(motorReqVel_filt_L, motorReqVel_filt_R);
 
   // Print info to Serial screen
   if (EchoNow) {

@@ -1,4 +1,4 @@
-void setMotorOutputs_VNH5019(float joyReq_L, float joyReq_R){
+void setMotorOutputs_G2(float joyReq_L, float joyReq_R){
 
   float motorDir_L, motorPwm_L, motorDir_R, motorPwm_R;
 
