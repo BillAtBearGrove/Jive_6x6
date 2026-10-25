@@ -71,7 +71,10 @@ void setMotorOutputs_G2(float joyReq_L, float joyReq_R){
       if (Brake_L < maxBrake) {// Braking function (init maxBrake, where maxBrake is latched until motorOut > brakeZone, otherwise scaled from maxBrake to minBrake)
         Brake_L = min(Brake_L + maxAccel_Brake*timestep, minBrake + ((brakeZone - abs(PIDout_L)) * brakeSlope)); // amount to brake  (0 to 400)
       }
-      md.setM1Brake(Brake_L); // set brake pwm
+      // ToDo : Temporary Fix : Add Motor Braking again - Temporarily let motor lock quickly via md.setM1Speed(0)
+      // Future may be able to rapidly cycle (at high frequency) between braking [aka md.setM1Speed(0) ] and coasting [aka disableM1Driver() ]
+      // md.setM1Brake(Brake_L); // set brake pwm
+      md.setM1Speed(0); // brakes the motor. It’s a full brake rather than a variable one on the VNH5019’s setM1Brake(brake) which took a 0–400 brake amount
     } else {
       // Reset Brake
       Brake_L = 0; //reset brake level if driving motor
@@ -87,7 +90,10 @@ void setMotorOutputs_G2(float joyReq_L, float joyReq_R){
       if (Brake_R < maxBrake) {// Braking function (init maxBrake, where maxBrake is latched until motorOut > brakeZone, otherwise scaled from maxBrake to minBrake)
         Brake_R = min(Brake_R + maxAccel_Brake*timestep, minBrake + ((brakeZone - abs(PIDout_R)) * brakeSlope)); // amount to brake  (0 to 400)
       }
-      md.setM2Brake(Brake_R); // set brake pwm
+      // ToDo: Temporary Fix : Add Motor Braking again - Temporarily let motor lock quickly via md.setM2Speed(0)
+      // Future may be able to rapidly cycle (at high frequency) between braking [aka md.setM2Speed(0) ] and coasting [aka disableM2Driver() ]
+      // md.setM2Brake(Brake_R); // set brake pwm
+      md.setM2Speed(0); // brakes the motor. It’s a full brake rather than a variable one on the VNH5019’s setM2Brake(brake) which took a 0–400 brake amount
     } else {
       // Reset Brake
       Brake_R = 0; //reset brake level if driving motor
