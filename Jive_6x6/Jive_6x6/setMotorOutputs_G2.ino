@@ -103,7 +103,7 @@ void setMotorOutputs_G2(float joyReq_L, float joyReq_R){
     }
 
     if (EchoSetMotors && EchoNow) {
-/*
+
       Serial.print("R: ");
       Serial.print("joyReq "); Serial.print(joyReq_R); Serial.print(" ");
       Serial.print("speedReq_R "); Serial.print(speedReq_R); Serial.print(" ");
@@ -115,8 +115,8 @@ void setMotorOutputs_G2(float joyReq_L, float joyReq_R){
       Serial.print("speedErr "); Serial.print(speedReq_R-speedCalc_R); Serial.print(" ");
       Serial.print("PIDout "); Serial.print(PIDout_R); Serial.print(" ");
       Serial.print("Brake "); Serial.print(Brake_R); Serial.print(" ");
-*/
 
+/*
       Serial.print("L: ");
       //Serial.print("joyReq "); Serial.print(joyReq_L); Serial.print(" ");
       //Serial.print("speedReq "); Serial.print(speedReq_L); Serial.print(" ");
@@ -128,7 +128,7 @@ void setMotorOutputs_G2(float joyReq_L, float joyReq_R){
       Serial.print("PIDout "); Serial.print(PIDout_L); Serial.print(" ");
       Serial.print("M1Speed "); Serial.print(motorPwm_L*400); Serial.print(" ");
       Serial.print("Brake "); Serial.print(Brake_L); Serial.print(" ");
-
+*/
 
     }
 

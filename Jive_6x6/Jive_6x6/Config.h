@@ -6,9 +6,9 @@
 bool showDetail = true; // hide/show details in serialprint
 int debugPeriod = 200; // ms time between serialprint debug when running
 bool EchoPID = false;
-bool EchoSetMotors = false;
+bool EchoSetMotors = true;
 bool EchoJoyTether = false;
-bool EchoJoyOcc = true;
+bool EchoJoyOcc = false;
 
 // Occupant Joystick
 //const float joyOffsetAngle_Occupant = 0; // polar orientation of joystick (offset # of degrees to get forward to equal 0) <OCCUPANT>
@@ -26,7 +26,7 @@ const float TetherDownrate = 1.0; // downrate of thether input for scaling speed
   const float spinDwell     = 3; // degrees travel on either side of left/right that is treated as true spin
   // Speeds
   const float minSpeed = 0.16; // overall scaling for all Vehicle speeds (except motorDropout which remains fixed)
-  const float maxSpeed = 0.4; // overall scaling for all Vehicle speeds (except motorDropout which remains fixed)
+  const float maxSpeed = 1.0; // overall scaling for all Vehicle speeds (except motorDropout which remains fixed)
     // Detailed Speeds (relative to maxSpeed)
     const float motorForward_PowerLevels = 1.0 ; // range: 0.01 to 1 max FORWARD Speed  (% output for Motor pwm)
     const float motorReverse_PowerLevels = 0.75 ; // range: 0.01 to 1 max REVERSE Speed (% output for Motor pwm)

@@ -9,11 +9,13 @@
   #include "src/Debounce.h"
   #include "src/Filter.h"
   #include "PID.h"
+  #include "src/DualVNH5019MotorShield.h"
   #include "DualG2HighPowerMotorShield.h"
   #include "pinouts.h"; // Use for VNH5019 MotorShield
   #include "Config.h";
   #include "Init.h";
   #include "joyProcessing.h";
+  DualVNH5019MotorShield fmd; // false motor driver
   DualG2HighPowerMotorShield24v18 md; //setup G2 method
 
   unsigned long lastDebugTime = millis(); // only send serialmonitor debug() every debugPeriod ms
@@ -21,7 +23,16 @@
   
 void setup() {
   Serial.begin(115200); // set communication between computer & Arduino
-  md.init(); // initialize VNH5019
+  fmd.init(); // falsemotor driver to set pwm freq
+  // initialize VNH5019
+  md.init();
+  md.calibrateCurrentOffsets();
+  md.enableM1Driver();
+  md.enableM2Driver();
+  //TCCR1A = 0b10100011; //Aaron: 0b10100011 Stock: 0b10100000 // 20 kHz on pin 9 for M1
+  //TCCR1B = 0b00001010; //Aaron: 0b00001010 Stock: 0b00010001 // 20 kHz on pin 10 for M2
+  //ICR1 = 400;
+
   pinMode(JoySwitch_Main,INPUT);
   createJoystickTables(); // Generate mix tables for Left & Right mix based on joystick angle and scale based on radius
 
