@@ -6,9 +6,9 @@
 bool showDetail = true; // hide/show details in serialprint
 int debugPeriod = 200; // ms time between serialprint debug when running
 bool EchoPID = false;
-bool EchoSetMotors = true;
+bool EchoSetMotors = false;
 bool EchoJoyTether = false;
-bool EchoJoyOcc = false;
+bool EchoJoyOcc = true;
 
 // Occupant Joystick
 //const float joyOffsetAngle_Occupant = 0; // polar orientation of joystick (offset # of degrees to get forward to equal 0) <OCCUPANT>
