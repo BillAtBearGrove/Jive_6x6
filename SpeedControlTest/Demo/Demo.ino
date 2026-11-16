@@ -1,38 +1,44 @@
 // Basic code to test speed control for a motor
-// start/stop and Input speed and step rate from serial monitor
+// start/stop and Input speed and steps rate from serial monitor
 // Run M1 only for simplicity
 
 #include "DualG2HighPowerMotorShield.h"
 #include "PID.h"
 
 // Setup serial monitor control variables
-int target = 0; // target speed that we will step to when we start
-int speed = 0; // commanded speed target (desired after ramp up/down)
-int speedNow = 0; // instantaneous commanded speed (may be different than speed while ramping up/down)
-int step = 1; // increment steps 1 to 100
-int del = 5; // ms between loops 0 to 1000 ms
+float rpmSetpoint = 0; // commanded rpmSetpointtpoint rpmTarget_L (desired after ramp up/down)
+float rpmStep = 1; // max increment steps for rpm to change 1 to 100 per loop
+int outputStep = 40; // max increment steps for motor output 1 to 100
+int del = 0; // ms between loops 0 to 1000 ms
 bool run = false; // "s" will toggle run mode 
 String input = "";
 
-double resistance = 0.311;
-double Ke = 0.1458; // this should be the motor KE reflected to the output shaft (Ke motor * Gear Ratio)
-double rpmMeas = 0;
-double rpmTarget = 0;
-double voltageSupply = 24;
-double voltageSent = 0;
-int setPoint = 0;
+float resistance = 0.6; //0.311;
+float Ke = 0.1458; // this should be the motor KE reflected to the output shaft (Ke motor * Gear Ratio)
 
-double Kp = 0.01; //10; //0.015;3
-double Ki = 0; //0.001; //0.002;
-double Kd = 0; //1; //0.02;
-double iForget = 0.005; // 0.005; // 0-1 = % to forget the Integrator each step
-double PID_min = -1;
-double PID_max = 1;
-double PID_rateLim = 0.001; //0.005; //0.001;
+float rpmTarget_L = 0;  // operator/requested RPM
+float rpmCmd_L = 0;     // commanded RPM after rate limiting
+float rpmEstimate_L = 0; // calculated rpm = (v-(i*r))/Ke where v = 24v supply * cmdM1/400
+float rpmMax = 150; // maximum commandable rpm
+float voltageSupply = 24; // assumes 24V battery voltage
+float voltageSent = 0; // calculated voltage sent to motor = vSupply * PIDcmd
+float amps_L = 0;
+int cmdM1 = 0;
+
+bool echo = false;
+
+float Kp = 0.1; // suggested 0-1
+float Ki = 0.01; // suggested 0-0.1
+float Kd = 0.4; // suggested 0-0.1
+float iForget = 0.005; // 0.005; // 0-1 = % to forget the Integrator each steps
+float PID_min = -1;
+float PID_max = 1;
+float PID_rateLim = 0.001; //0.005; //0.001;
+float PIDout_L = 0; // -1 to 1 as percent duty cycle to send to M1 motor
 
 
 // PID setup classes
-  PID motorPID;
+  PID motorPID_L;
 
 int maxOut = 400;
 
@@ -49,18 +55,21 @@ int maxOut = 400;
 void setup()
 {
   Serial.begin(115200);
-  delay(3000); // give time for serial monitor to start, otherwise it resets sketch for some reason
+  delay(2000); // give time for serial monitor to start, otherwise it resets sketch for some reason
 
   Serial.println("SETUP START");
   Serial.println("Dual G2 High Power Motor Shield");
 
   Serial.println();
-  Serial.println("s = Start/Stop; speed = -100 to 100; step = 1 to 100 per step");
+  Serial.println("s = Start/Stop; rpmTarget = -100 to 100; step = 1 to 100 per step");
   Serial.println("Commands:");
-  Serial.println("target=20 where target = -100 to 100 as percent full speed");
-  Serial.println("step=1 where step = 1 to 100 per ramp loop");
+  Serial.println("20 (or any number -100 to 100) sets rpmTarget as percent full speed");
+  Serial.println("rpmStep=1 where rpmStep = 1 to 100 per ramp loop");
+  Serial.println("outputStep=1 where outputStep = 1 to 100 per ramp loop");
   Serial.println("del=1 where del = 1 to 100 ms per ramp loop");
   Serial.println("<enter> starts and stops motor");
+  Serial.println();
+  Serial.println("Kp=0.1, Ki=0.01, Kd=1; or iForget=0.005 sets Kp, Ki, Kd and iForget terms");
   Serial.println();
 
   md.init();
@@ -76,9 +85,9 @@ void setup()
   delay(2);
 
  // PID setup
-    motorPID.setLimits(PID_min, PID_max);
-    motorPID.setConstants(Kp, Ki, Kd, iForget);
-    motorPID.setRateLimit(PID_rateLim);
+    motorPID_L.setLimits(PID_min, PID_max);
+    motorPID_L.setConstants(Kp, Ki, Kd, iForget);
+    motorPID_L.setRateLimit(PID_rateLim);
  
 }
 
@@ -88,43 +97,67 @@ void loop()
   if (Serial.available()) {
     readSerial();
   }  
-  speed = run? target:0; // set speed to zero if not run (steps down)
+  rpmSetpoint = run? rpmTarget_L:0; // set rpmSetpoint to zero if not run (steps down)
 
-  if (speedNow < speed) {
-    speedNow = constrain(speedNow + step, -100, 100);
+  if (rpmCmd_L < rpmSetpoint) {
+    rpmCmd_L = constrain(rpmCmd_L + rpmStep, -rpmMax, rpmSetpoint);
   }
-  if (speedNow > speed) {
-    speedNow = constrain(speedNow - step, -100, 100);
+  if (rpmCmd_L > rpmSetpoint) {
+    rpmCmd_L = constrain(rpmCmd_L - rpmStep, rpmSetpoint, rpmMax);
   }
-  
-  long temp = (long)maxOut * speedNow / 100;
-  setPoint = constrain(temp, -maxOut, maxOut);
-  setM1(setPoint);
+
+  float FeedForward_L = rpmCmd_L/rpmMax; // basic feedfoward term to use for now
+  rpmEstimate_L = calcRpm_L();
+  PIDout_L = motorPID_L.calc( rpmCmd_L - rpmEstimate_L, FeedForward_L ); // error controller PID(error, FeedForward)
+
+  long temp = (long)maxOut * PIDout_L; // use PID to control output
+  int cmdM1Prev = cmdM1;
+  cmdM1 = constrain(temp, max(-maxOut, cmdM1Prev - outputStep), min(maxOut, cmdM1Prev + outputStep)); // temporary rate limted changes to output
+  setM1(cmdM1);
+
+  if( (rpmCmd_L != rpmSetpoint) || echo ){
+    Serial.print(" rpmCmd_L = "); Serial.print(rpmCmd_L,2);
+    Serial.print(" rpmEstimate_L = "); Serial.print(rpmEstimate_L,2);
+    Serial.print(" FeedForward_L = "); Serial.print(FeedForward_L,2);
+    Serial.print(" PIDout_L = "); Serial.print(PIDout_L,2);
+    Serial.print(" cmdM1 = "); Serial.print(cmdM1);
+    Serial.print(" amps_L = "); Serial.println(amps_L,2);
+  }
 
   delay(del);
 }
 
 /* ////////////////////////////////////////////////////////// */
 /* ////////////////////////////////////////////////////////// */
+float calcRpm_L()
+{
+  float firstOrdFilt = 0.01; // filter to apply to measured current
+  amps_L += ( (md.getM1CurrentMilliamps()/1000) - amps_L) * firstOrdFilt; // measure current and filter
+
+  float temp = abs(((float)voltageSupply*(float)cmdM1) / 400);
+  float rpmEstimate_L = (temp - (amps_L * resistance) )/Ke; // rpm = (v-(i*r))/Ke
+
+  if (cmdM1<0){
+    rpmEstimate_L = -rpmEstimate_L; // make negative if drive backwards
+  }
+  if( echo ){
+    //Serial.print(" temp = "); Serial.print(temp);
+    //Serial.print(" amps_L * resistance = "); Serial.print(amps_L * resistance);
+  }
+
+  return rpmEstimate_L;
+}
+
 void measure()
 {
   Serial.println();
-  Serial.print("  speedNow = "); Serial.println(speedNow);
-  float avgCurr = 0;
-  int num = 1000; // number of samples
-  for (int i=0; i<num; i++){
-    avgCurr +=md.getM1CurrentMilliamps();
-  }
-  avgCurr = avgCurr/num/1000; // current in amps
-  Serial.print("  avgCurr = "); Serial.println(avgCurr);
-  float temp = abs(((float)voltageSupply*(float)speedNow) / 100);
-  Serial.print("  temp = "); Serial.print(temp);
-  Serial.print("  i = "); Serial.print(avgCurr, 4);
-  Serial.print("  R = "); Serial.print(resistance, 4);
-  Serial.print("  Ke = "); Serial.print(Ke, 4);
-  float rpmEstimate = (temp - (avgCurr * resistance) )/Ke; // rpm = (v-(i*r))/Ke
-  Serial.print("  rpmEstimate = "); Serial.println(rpmEstimate);
-  Serial.println();
+  Serial.print(" rpmCmd_L = "); Serial.print(rpmCmd_L);
+  Serial.print(" rpmEstimate_L = "); Serial.print(rpmEstimate_L);
+  Serial.print(" PIDout_L = "); Serial.print(PIDout_L);
+  Serial.print(" cmdM1 = "); Serial.println(cmdM1);
+  Serial.print(" i = "); Serial.print(amps_L, 4);
+  Serial.print(" R = "); Serial.print(resistance, 4);
+  Serial.print(" Ke = "); Serial.println(Ke, 4);
 }
 
 void stopIfFault()
@@ -150,12 +183,14 @@ void setM1(int i)
 {
   md.setM1Speed(i);
   stopIfFault();
+  /*
   if (i%200 == 100)
   {
     Serial.print("M1 current: ");
     Serial.println(md.getM1CurrentMilliamps());
 	}
   delay(10);
+  */
 }
 
 // MOTOR 2
@@ -163,12 +198,14 @@ void setM2(int i)
 {
   md.setM2Speed(i);
   stopIfFault();
+  /*
   if (i%200 == 100)
   {
     Serial.print("M2 current: ");
     Serial.println(md.getM2CurrentMilliamps());
 	}
   delay(10);
+  */
 }
 
 void readSerial()
@@ -182,12 +219,14 @@ void readSerial()
     else if (cmd == "m") {
       measure();
     }
+    else if (cmd == "echo") {
+      echo = !echo;
+    }
     else if (cmd.indexOf('=') == -1) {
         // Plain number entered
-        target = constrain(cmd.toInt(), -100, 100);
-
-        Serial.print("changing target to ");
-        Serial.println(target);
+        rpmTarget_L = constrain(cmd.toInt(), -rpmMax, rpmMax);
+        Serial.print("changing rpmTarget_L to ");
+        Serial.println(rpmTarget_L);
     }
     else {
         int pos = cmd.indexOf('=');
@@ -195,31 +234,60 @@ void readSerial()
         String var = cmd.substring(0, pos);
         String val = cmd.substring(pos + 1);
 
-        if (var == "target") {
-            target = constrain(val.toInt(), -100, 100);
-            Serial.print("changing target to ");
-            Serial.println(target);
+        if (var == "rpmTarget_L") {
+            rpmTarget_L = constrain(val.toFloat(), -rpmMax, rpmMax);
+            Serial.print("changing rpmTarget_L to "); Serial.println(rpmTarget_L);
         }
-        else if (var == "step") {
-            step = constrain(val.toInt(), 1, 100);
-            Serial.print("changing step to ");
-            Serial.println(step);
+        else if (var == "rpmStep") {
+            rpmStep = constrain(val.toFloat(), 0.01, 100);
+            Serial.print("changing rpmStep to "); Serial.println(rpmStep);
+        }
+        else if (var == "outputStep") {
+            outputStep = constrain(val.toInt(), 1, 100);
+            Serial.print("changing outputStep to "); Serial.println(outputStep);
         }
         else if (var == "del") {
             del = constrain(val.toInt(), 0, 1000);
-            Serial.print("changing delay to ");
-            Serial.println(del);
+            Serial.print("changing delay to "); Serial.println(del);
+        }
+        else if (var == "Kp") {
+            Kp = constrain(val.toFloat(), 0, 10);
+            Serial.print("changing Kp to "); Serial.println(del);
+        }
+        else if (var == "Ki") {
+            Ki = constrain(val.toFloat(), 0, 1);
+            Serial.print("changing Ki to "); Serial.println(del);
+        }
+        else if (var == "Kd") {
+            Kd = constrain(val.toFloat(), 0, 1);
+            Serial.print("changing Kd to "); Serial.println(del);
+        }
+        else if (var == "iForget") {
+            iForget = constrain(val.toFloat(), 0, 1);
+            Serial.print("changing iForget to "); Serial.println(del);
         }
         else {
             Serial.println("Unknown variable");
         }
+      
+      motorPID_L.setConstants(Kp, Ki, Kd, iForget);
     }
   
-    Serial.print("  run    = ");  Serial.println(run);
-    Serial.print("  target = "); Serial.println(target);
-    Serial.print("  speed  = "); Serial.println(speed);
-    Serial.print("  step   = ");  Serial.println(step);
-    Serial.print("  del    = ");  Serial.println(del);
+    Serial.println();
+    Serial.print("  run = ");  Serial.print(run);
+    Serial.print(" rpmTarget_L = "); Serial.print(rpmTarget_L);
+    Serial.println();
+
+    Serial.print("  rpmStep = ");  Serial.print(rpmStep);
+    Serial.print(" outputStep = ");  Serial.print(outputStep);
+    Serial.print(" delay = ");  Serial.print(del);
+    Serial.println();
+
+    Serial.print("  Kp = "); Serial.print(Kp);
+    Serial.print(" Ki = "); Serial.print(Ki);
+    Serial.print(" Kd = "); Serial.print(Kd);
+    Serial.print(" iForget = "); Serial.print(iForget);
+    Serial.println();
     Serial.println();
 
 }
