@@ -1,14 +1,19 @@
 // Basic code to test speed control for a motor
-// start/stop and Input speed and steps rate from serial monitor
+// start/stop and Input speed from serial monitor
 // Run M1 only for simplicity
+/*
+  This SW set can used with InvacareTDX_1165865MotorData_ImpericalSpeedStudy_withController.xlsx (or similar) to 
+  calculate the effective Ke, R, and Vo for the motor to get the right rpm speed calculation
+  And then can use Kp, Ki, Kd to tune the PID for accurate following.
+*/
 
 #include "DualG2HighPowerMotorShield.h"
 #include "PID.h"
 
 // Setup serial monitor control variables
 float rpmSetpoint = 0; // commanded rpmTarget_L if running, else 0
-float rpmStep = 1; // max increment steps for rpm to change 1 to 100 per loop
-int outputStep = 40; // max increment steps for motor output 1 to 100
+float rpmStep = 0.5; // max increment steps for rpm to change 1 to 100 per loop
+int outputStep = 10; // max increment steps for motor output 1 to 100
 int del = 0; // ms between loops 0 to 1000 ms
 bool run = false; // "s" will toggle run mode 
 String input = "";
@@ -157,14 +162,14 @@ void stopIfFault()
   if (md.getM1Fault())
   {
     md.disableDrivers();
-	delay(1);
+	  delay(1);
     Serial.println("M1 fault");
     while (1);
   }
   if (md.getM2Fault())
   {
     md.disableDrivers();
-	delay(1);
+	  delay(1);
     Serial.println("M2 fault");
     while (1);
   }
